@@ -1,8 +1,8 @@
 {
   "name": "force-push-button",
   "displayName": "Force Push Button",
-  "description": "Adds a force push button to VS Code's source control view that is enabled when you have both incoming and outgoing commits",
-  "version": "1.0.1",
+  "description": "Adds a force push button to the source control view",
+  "version": "1.0.2",
   "publisher": "luisbrose",
   "icon": "images/icon.png",
   "repository": {

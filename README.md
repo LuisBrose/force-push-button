@@ -4,7 +4,6 @@ Adds a force push button to the source control view.
 
 ## Features
 
-- Adds a force push button to VS Code's source control view
 - Button is automatically enabled when you have both incoming and outgoing commits
 - Button is disabled during force push operations
 - Integrates with VS Code's built-in Git functionality
