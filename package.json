@@ -1,0 +1,90 @@
+{
+  "name": "force-push-button",
+  "displayName": "Force Push Button",
+  "description": "Adds a force push button to VS Code's source control view that is enabled when you have both incoming and outgoing commits",
+  "version": "1.0.0",
+  "publisher": "luisbrose",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LuisBrose/force-push-button"
+  },
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:scm"
+  ],
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "force-push-button.toggleForcePush",
+        "title": "Toggle Force Push"
+      }
+    ],
+    "views": {
+      "scm": [
+        {
+          "type": "webview",
+          "id": "force-push-button",
+          "name": "Force Push"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Force Push Button",
+      "properties": {
+        "forcePushButton.updateInterval": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 100,
+          "maximum": 10000,
+          "description": "Interval in milliseconds to check for Git state changes"
+        },
+        "forcePushButton.showNotifications": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show notifications for force push success/failure"
+        },
+        "forcePushButton.alignment": {
+          "type": "string",
+          "enum": [
+            "top",
+            "center",
+            "bottom"
+          ],
+          "default": "top",
+          "description": "Vertical alignment of the force push button in the source control view"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.100.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "eslint": "^9.25.1",
+    "typescript": "^5.8.3",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^2.24.0"
+  }
+}
