@@ -224,10 +224,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 			const state = repo.state;
 			const head = state.HEAD;
-			const ahead = head?.ahead || 0;
-			const behind = head?.behind || 0;
+			const behind = head?.behind ?? 0;
 			const hasUpstream = !!head?.upstream;
-			const enabled = hasUpstream && ahead > 0 && behind > 0;
+			const enabled = hasUpstream && behind > 0;
 
 			setButtonEnabled(enabled);
 		} catch (error) {
