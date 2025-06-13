@@ -216,19 +216,21 @@ export function activate(context: vscode.ExtensionContext) {
 			const git = gitExtension.exports;
 			const api = git.getAPI(1);
 
-			const repo = api.repositories[0];
-			if (!repo) {
+			const repos = api.repositories;
+			if (!repos || repos.length === 0) {
 				setButtonEnabled(false);
 				return;
 			}
 
-			const state = repo.state;
-			const head = state.HEAD;
-			const behind = head?.behind ?? 0;
-			const hasUpstream = !!head?.upstream;
-			const enabled = hasUpstream && behind > 0;
+			const hasIncomingChanges = repos.some((repo: { state: { HEAD?: { behind?: number; upstream?: string } } }) => {
+				const state = repo.state;
+				const head = state.HEAD;
+				const behind = head?.behind ?? 0;
+				const hasUpstream = !!head?.upstream;
+				return hasUpstream && behind > 0;
+			});
 
-			setButtonEnabled(enabled);
+			setButtonEnabled(hasIncomingChanges);
 		} catch (error) {
 			console.error('[ForcePush] Error updating button state:', error);
 			setButtonEnabled(false);

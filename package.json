@@ -2,7 +2,7 @@
   "name": "force-push-button",
   "displayName": "Force Push Button",
   "description": "Adds a force push button to the source control view",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "publisher": "luisbrose",
   "icon": "images/icon.png",
   "repository": {
