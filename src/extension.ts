@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { execFile } from 'child_process';
 
 interface ForcePushConfig {
 	updateInterval: number;
@@ -19,6 +20,20 @@ function getConfig(): ForcePushConfig {
 		showNotifications: config.get('showNotifications') ?? DEFAULT_CONFIG.showNotifications,
 		alignment: config.get('alignment') ?? DEFAULT_CONFIG.alignment
 	};
+}
+
+function getGitApi(): any {
+	const gitExtension = vscode.extensions.getExtension('vscode.git');
+	return gitExtension?.exports?.getAPI(1);
+}
+
+function resolveRepositoryFromContext(scmContext: unknown, api: any): any {
+	const sourceControl: any = (scmContext as any)?.sourceControl ?? scmContext;
+	if (!sourceControl) { return undefined as any; }
+	return api.repositories.find((r: any) => r.sourceControl === sourceControl)
+		|| (sourceControl?.rootUri
+			? api.repositories.find((r: any) => r.rootUri?.toString() === sourceControl.rootUri.toString())
+			: undefined);
 }
 
 function getForcePushHtml(disabled: boolean) {
@@ -103,6 +118,58 @@ function getForcePushHtml(disabled: boolean) {
 	`;
 }
 
+async function execGit(cwd: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+	return await new Promise((resolve, reject) => {
+		execFile('git', args, { cwd }, (error, stdout, stderr) => {
+			if (error) { const err = error as Error & { stderr?: string }; err.stderr = stderr; reject(err); return; }
+			resolve({ stdout, stderr });
+		});
+	});
+}
+
+function getGitSettings() {
+	const cfg = vscode.workspace.getConfiguration('git');
+	return {
+		allowForcePush: cfg.get<boolean>('allowForcePush', false),
+		withLease: cfg.get<boolean>('useForcePushWithLease', false) === true,
+		ifIncludes: cfg.get<boolean>('useForcePushIfIncludes', false) === true
+	};
+}
+
+function buildForceArgs(remote: string, branch: string, withLease: boolean, ifIncludes: boolean): string[] {
+	const args = ['push'];
+	args.push(withLease ? '--force-with-lease' : '--force');
+	if (withLease && ifIncludes) { args.push('--force-if-includes'); }
+	args.push(remote, branch);
+	return args;
+}
+
+function showPushErrorPopup(error: unknown, fallback: string) {
+	const err: any = error as any;
+	const details = typeof err === 'string' ? err : (err?.stderr || err?.message || '');
+	const message = details ? `Failed to force push: ${details}` : fallback;
+	vscode.window.showErrorMessage(message);
+}
+
+async function forcePushRepo(repo: any): Promise<void> {
+	const settings = getGitSettings();
+	if (!settings.allowForcePush) {
+		vscode.window.showErrorMessage('Force push is disabled. Enable Git: Allow Force Push to continue.');
+		return;
+	}
+	const head = repo.state?.HEAD;
+	const remote = head?.upstream?.remote ?? 'origin';
+	const branch = head?.name;
+	if (!branch) {
+		vscode.window.showErrorMessage('Unable to determine current branch for force push.');
+		return;
+	}
+	const args = buildForceArgs(remote, branch, settings.withLease, settings.ifIncludes);
+	const cwd = repo.rootUri?.fsPath ?? '.';
+	await execGit(cwd, args);
+	try { await repo.status?.(); } catch { }
+}
+
 export function activate(context: vscode.ExtensionContext) {
 	// Check if this is first installation and set allowForcePush
 	const hasInitialized = context.globalState.get('hasInitializedForcePush');
@@ -112,13 +179,32 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 
 	let webviewPanel: vscode.WebviewView | undefined;
-	let statusBarItem: vscode.StatusBarItem;
 	let isPushing = false;
 	let updateInterval: NodeJS.Timeout;
 
-	// Create status bar item to track Git state
-	statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-	context.subscriptions.push(statusBarItem);
+	context.subscriptions.push(
+		vscode.commands.registerCommand('force-push-button.forcePushRepo', async (scmContext?: unknown) => {
+			if (isPushing) { return; }
+			const api = getGitApi();
+			if (!api) { return; }
+			const repo = resolveRepositoryFromContext(scmContext, api);
+			if (!repo) { return; }
+
+			isPushing = true;
+			setButtonEnabled(false);
+			try {
+				await forcePushRepo(repo);
+				if (getConfig().showNotifications) { vscode.window.showInformationMessage('Force push completed successfully'); }
+			} catch (error) {
+				console.error('[ForcePush] Error during per-repo force push:', error);
+				showPushErrorPopup(error, 'Failed to force push for the selected repository.');
+			} finally {
+				isPushing = false;
+				updateButtonState();
+			}
+		})
+	);
+
 
 	// Add the button to the source control view as a webview
 	context.subscriptions.push(
@@ -176,23 +262,27 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 
 	async function handleForcePush(): Promise<void> {
-		if (isPushing) return;
+		if (isPushing) { return; }
 
 		isPushing = true;
 		setButtonEnabled(false);
 
 		try {
+			const gitConfig = vscode.workspace.getConfiguration('git');
+			if (!gitConfig.get<boolean>('allowForcePush', false)) {
+				vscode.window.showErrorMessage('Force push is disabled. Enable Git: Allow Force Push to continue.');
+				return;
+			}
 			await vscode.commands.executeCommand('git.pushForce');
 			if (getConfig().showNotifications) {
 				vscode.window.showInformationMessage('Force push completed successfully');
 			}
 		} catch (error) {
 			console.error('[ForcePush] Error during force push:', error);
-			if (getConfig().showNotifications) {
-				vscode.window.showErrorMessage(
-					'Failed to force push. Please check the output panel for details.'
-				);
-			}
+			const err: any = error as any;
+			const details = typeof err === 'string' ? err : (err?.stderr || err?.message || '');
+			const message = details ? `Failed to force push: ${details}` : 'Failed to force push. Please check the output panel for details.';
+			vscode.window.showErrorMessage(message);
 		} finally {
 			isPushing = false;
 			updateButtonState();
@@ -201,35 +291,13 @@ export function activate(context: vscode.ExtensionContext) {
 
 	async function updateButtonState(): Promise<void> {
 		try {
-			// If we're currently pushing, keep the button disabled
-			if (isPushing) {
-				setButtonEnabled(false);
-				return;
-			}
-
-			const gitExtension = vscode.extensions.getExtension('vscode.git');
-			if (!gitExtension) {
-				setButtonEnabled(false);
-				return;
-			}
-
-			const git = gitExtension.exports;
-			const api = git.getAPI(1);
-
-			const repos = api.repositories;
-			if (!repos || repos.length === 0) {
-				setButtonEnabled(false);
-				return;
-			}
-
+			if (isPushing) { setButtonEnabled(false); return; }
+			const repos = getGitApi()?.repositories;
+			if (!repos?.length) { setButtonEnabled(false); return; }
 			const hasIncomingChanges = repos.some((repo: { state: { HEAD?: { behind?: number; upstream?: string } } }) => {
-				const state = repo.state;
-				const head = state.HEAD;
-				const behind = head?.behind ?? 0;
-				const hasUpstream = !!head?.upstream;
-				return hasUpstream && behind > 0;
+				const head = repo.state.HEAD;
+				return Boolean(head?.upstream) && (head?.behind ?? 0) > 0;
 			});
-
 			setButtonEnabled(hasIncomingChanges);
 		} catch (error) {
 			console.error('[ForcePush] Error updating button state:', error);
@@ -238,9 +306,8 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 
 	function setButtonEnabled(enabled: boolean): void {
-		if (webviewPanel) {
-			webviewPanel.webview.postMessage({ command: 'setEnabled', enabled });
-		}
+		webviewPanel?.webview.postMessage({ command: 'setEnabled', enabled });
+		vscode.commands.executeCommand('setContext', 'forcePushAvailable', enabled);
 	}
 }
 

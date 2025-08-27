@@ -2,7 +2,7 @@
   "name": "force-push-button",
   "displayName": "Force Push Button",
   "description": "Adds a force push button to the source control view",
-  "version": "1.0.5",
+  "version": "1.1.0",
   "publisher": "luisbrose",
   "icon": "images/icon.png",
   "repository": {
@@ -29,6 +29,23 @@
           "type": "webview",
           "id": "force-push-button",
           "name": "Force Push"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "force-push-button.forcePushRepo",
+        "title": "Force Push",
+        "icon": "$(arrow-up)",
+        "category": "Git"
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "force-push-button.forcePushRepo",
+          "when": "scmProvider == git && gitOpenRepositoryCount > 0 && forcePushAvailable",
+          "group": "navigation@-1"
         }
       ]
     },

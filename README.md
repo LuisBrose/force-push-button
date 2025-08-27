@@ -1,16 +1,18 @@
 # Force Push Button
 
-Adds a force push button to the source control view.
+Adds a big Force Push button to the Source Control view and a per-repo Force Push button in the Source Control title bar.
 
 ## Features
 
-- Button is automatically enabled when you have incoming commits
-- Button is disabled during force push operations
-- Integrates with VS Code's built-in Git functionality
-- Button can be freely rearranged within the source control view using drag and drop
-- Configurable vertical alignment (top, center, or bottom)
+- Per-repo Force Push button in the Source Control title bar
+- Big Force Push button inside the Source Control view
+- Respects VS Code Git settings: `git.allowForcePush`, `git.useForcePushWithLease`, `git.useForcePushIfIncludes`
+- Button is disabled while a push is in progress
+- The button are only enabled/visible when we have incoming commits
+- Configurable vertical alignment for the button (top, center, bottom)
 
 ![Force Push Button Demo](images/demo.png)
+![Quick Force Push Demo](images/demo-quick-push.png)
 
 
 ## Extension Settings
@@ -28,7 +30,7 @@ The extension can be configured using the following settings:
 {
     "forcePushButton.updateInterval": 2000,
     "forcePushButton.showNotifications": true,
-    "forcePushButton.alignment": "bottom"
+    "forcePushButton.alignment": "bottom",
 }
 ```
 
